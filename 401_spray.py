@@ -90,8 +90,8 @@ if __name__ == "__main__":
         with Pool(opts.threads) as p:
             for s in pool.imap_unordered(check_creds, attempts):
             
-            if s:
-                f.write(f"{s[0]}:{s[1]}" + '\n')
+                if s:
+                    f.write(f"{s[0]}:{s[1]}" + '\n')
 
         if i == opts.attempts:
             print(f"{str(datetime.now())} Sleeping for {opts.interval} minutes.")
