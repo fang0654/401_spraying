@@ -17,12 +17,16 @@ def check_creds(opts):
     url, domain, username, password, authtype, proxies = opts
 
     if authtype == "ntlm":
-
-        auth = HttpNtlmAuth(f"{domain}\\{username}", password)    
+        if domain:
+            auth = HttpNtlmAuth(f"{domain}\\{username}", password)    
+        else:
+            auth = HttpNtlmAuth(username, password)
 
     else:
-
-        auth = (f"{domain}\\{username}", password)
+        if domain:
+            auth = (f"{domain}\\{username}", password)
+        else:
+            auth = (username, password)
 
     try:
         res = requests.get(url, verify=False, proxies=proxies, auth=auth, allow_redirects=False)
@@ -44,7 +48,7 @@ if __name__ == "__main__":
 
     args.add_argument('-u', '--usernames', help="List of usernames to attack", required=True)
     args.add_argument('-p', '--passwords', help="List of passwords to try", required=True)
-    args.add_argument('-d', '--domain', help="Domain name to append", required=True)
+    args.add_argument('-d', '--domain', help="Domain name to append. If not included, then domains will be assumed to be in username list.", required=False)
     args.add_argument('-U', '--url', help="URL to authenticate against", required=True)
     args.add_argument('-a', '--attempts', 
                         help="Number of attempts to try before sleeping. If your lockout policy is 5 attempts per 10 minutes, then set this to like 3", 
