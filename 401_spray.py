@@ -88,11 +88,10 @@ if __name__ == "__main__":
         print(f"{str(datetime.now())}: Attempting {p} ({current}/{total})")
         attempts = [ (opts.url, opts.domain, u, p, opts.authtype, proxies) for u in usernames]
         with Pool(opts.threads) as p:
-            success = [s for s in p.map(check_creds, attempts) if s]
-
-        for s in success:
-
-            f.write(f"{s[0]}:{s[1]}" + '\n')
+            for s in pool.imap_unordered(check_creds, attempts):
+            
+            if s:
+                f.write(f"{s[0]}:{s[1]}" + '\n')
 
         if i == opts.attempts:
             print(f"{str(datetime.now())} Sleeping for {opts.interval} minutes.")
