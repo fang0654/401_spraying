@@ -93,7 +93,7 @@ if __name__ == "__main__":
         print(f"{str(datetime.now())}: Attempting {p} ({current}/{total})")
         attempts = [ (opts.url, opts.domain, u, p, opts.authtype, proxies, args.add_response) for u in usernames]
         with Pool(opts.threads) as p:
-            for s in pool.imap_unordered(check_creds, attempts):
+            for s in p.imap_unordered(check_creds, attempts):
             
                 if s:
                     f.write(f"{s[0]}:{s[1]}" + '\n')
