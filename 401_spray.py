@@ -15,7 +15,7 @@ from multiprocessing import Pool
 def check_creds(opts):
 
     url, domain, username, password, authtype, proxies, track_time = opts
-    start = time.time()
+    
     if authtype == "ntlm":
         if domain:
             auth = HttpNtlmAuth(f"{domain}\\{username}", password)    
@@ -33,14 +33,14 @@ def check_creds(opts):
 
         if res.status_code != 401:
             if track_time:
-                print(f"Success! {username}:{password}  - {time.time() - start}s")
+                print(f"Success! {username}:{password}  - {int(res.elapsed.microseconds / 1000)}s")
             else:
                 print(f"Success! {username}:{password}")
 
             return username, password
 
         elif track_time:
-            print(f"Fail:  {username}:{password}  - {time.time() - start}s")
+            print(f"Fail:  {username}:{password}  - {int(res.elapsed.microseconds / 1000)}ms")
     except Exception as e:
         print(f"Error occurred with {username}:{password}: {e}")
 
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     args.add_argument('--proxy', help="Proxy server to route traffic through")
     args.add_argument('--threads', help="Number of threads", type=int, default=1)
     args.add_argument('--output', help="File to write successful pairs to", default="success.log")
-    args.add_argument("--add-response", help="Add response times to output", action="store_true")
+    args.add_argument("--add_response", help="Add response times to output", action="store_true")
     opts = args.parse_args()
 
     if opts.proxy and opts.authtype == 'basic':
@@ -91,7 +91,7 @@ if __name__ == "__main__":
         i += 1
 
         print(f"{str(datetime.now())}: Attempting {p} ({current}/{total})")
-        attempts = [ (opts.url, opts.domain, u, p, opts.authtype, proxies, args.add_response) for u in usernames]
+        attempts = [ (opts.url, opts.domain, u, p, opts.authtype, proxies, opts.add_response) for u in usernames]
         with Pool(opts.threads) as p:
             for s in p.imap_unordered(check_creds, attempts):
             
