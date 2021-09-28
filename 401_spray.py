@@ -29,18 +29,22 @@ def check_creds(opts):
             auth = (username, password)
 
     try:
-        res = requests.get(url, verify=False, proxies=proxies, auth=auth, allow_redirects=False)
+        timeA = time()
+        res = requests.get(url, verify=False, proxies=proxies,
+                           auth=auth, allow_redirects=False)
+        timeB = time()
+        elapsedTimeMs = round((timeB - timeA) * 1000, 2)
 
         if res.status_code != 401:
             if track_time:
-                print(f"Success! {username}:{password}  - {int(res.elapsed.microseconds / 1000)}s")
+                print(f"Success! {username}:{password}  - {elapsedTimeMs}ms")
             else:
                 print(f"Success! {username}:{password}")
 
             return username, password
 
         elif track_time:
-            print(f"Fail:  {username}:{password}  - {int(res.elapsed.microseconds / 1000)}ms")
+            print(f"Fail:  {username}:{password}  - {elapsedTimeMs}ms")
     except Exception as e:
         print(f"Error occurred with {username}:{password}: {e}")
 
@@ -106,9 +110,3 @@ if __name__ == "__main__":
             i = 0
 
         current += 1
-
-
-
-
-
-
