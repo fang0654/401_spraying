@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import requests
-from requests_ntlm2 import HttpNtlmAuth
+from requests_ntlm2 import HttpNtlmAuth, HttpNtlmAdapter, NtlmCompatibility
 
 from base64 import b64encode as be, b64decode as bd
 import argparse
@@ -24,8 +24,8 @@ def check_creds(opts):
         else:
             auth = HttpNtlmAuth(username, password)
 
-        headers = {"Authorization": "NTLM TlRMTVNTUAABAAAAB4IIAAAAAAAAAAAAAAAAAAAAAAA="}
-
+        # headers = {"Authorization": "NTLM TlRMTVNTUAABAAAAB4IIAAAAAAAAAAAAAAAAAAAAAAA="}
+        headers = {"X-Force-NTLM": "true"}
     else:
         if domain:
             auth = (f"{domain}\\{username}", password)
