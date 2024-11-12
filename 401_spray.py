@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import requests
+import requests_random_user_agent
 from requests_ntlm import HttpNtlmAuth
 
 from base64 import b64encode as be, b64decode as bd
