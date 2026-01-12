@@ -1,2 +1,3 @@
 requests-ntlm2 @ git+https://github.com/fang0654/requests-ntlm2
 requests-random-user-agent
+requests_ntlm
